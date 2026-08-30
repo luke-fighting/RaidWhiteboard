@@ -1,0 +1,6 @@
+RaidWhiteboard
+Copyright (C) 2026 Lukas Koschine
+SPDX-License-Identifier: LGPL-3.0-or-later
+
+GNU Lesser General Public License version 3 or later.
+Official text: https://www.gnu.org/licenses/lgpl-3.0.txt
