@@ -141,6 +141,8 @@ local function ScheduleSync()
     end
 end
 
+local wasInGroup = false
+
 eventFrame:SetScript("OnEvent", function(_, event, arg1)
     if event == "ADDON_LOADED" and arg1 == addonName then
         RaidWhiteboardDB = RaidWhiteboardDB or {}
@@ -152,8 +154,42 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
         RWB.activeColorId = RWB.db.lastColorId or 1
         RWB.activeThickness = RWB.db.lastThickness or 4
         RefreshUi()
+	elseif event == "PARTY_LEADER_CHANGED"
+		or event == "RAID_ROSTER_UPDATE"
+		or event == "PARTY_MEMBERS_CHANGED" then
+
+		local isNowInGroup = RWB:IsInRaidGroup() or RWB:IsInPartyGroup()
+
+		if not wasInGroup and isNowInGroup then
+			-- 1. Das alte Solo-Board nur auf diesem Client löschen.
+			--    false verhindert einen X/CLEAR-Broadcast an den Raid.
+			if RWB.ClearCanvas then
+				RWB:ClearCanvas(false)
+			end
+
+			-- 2. Board sichtbar halten bzw. öffnen, ohne seinen Zustand
+			--    an die Gruppe zu senden.
+			if RWB.OpenBoard then
+				RWB:OpenBoard(false)
+			end
+
+			-- 3. Den vollständigen Zustand beim Lead/Assist anfordern.
+			--    Die Funktion sendet Q nach 2, 5 und 9 Sekunden, bis eine
+			--    Antwort als empfangen markiert wurde.
+			ScheduleSync()
+		end
+
+		wasInGroup = isNowInGroup
+
+		local before = RWB.canDraw
+		RWB:UpdateDrawPermission()
+
+		if before ~= RWB.canDraw and RWB.RefreshToolbarState then
+			RWB:RefreshToolbarState()
+		end
     elseif event == "PLAYER_ENTERING_WORLD" then
         RefreshUi()
+		wasInGroup = RWB:IsInRaidGroup() or RWB:IsInPartyGroup()
         if RWB.RegisterComm then RWB:RegisterComm() end
         ScheduleSync()
     else
