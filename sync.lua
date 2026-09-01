@@ -84,13 +84,12 @@ function RWB:OnComm(message)
     end
     local kind,rest=message:match("^(%u+):(.*)$")
 	if kind == "O" then
-		-- Eine O-Nachricht kommt als erste Antwort eines Lead/Assistenten
-		-- auf unseren Q-Sync-Request.
+		-- Die erste O-Nachricht bestätigt unseren Sync-Request.
 		self.hasReceivedSyncResponse = true
 
 		if rest == "1" then
 			self:OpenBoard(false)
-		else
+		elseif rest == "0" then
 			self:CloseBoard(false)
 		end
     elseif kind=="S" then

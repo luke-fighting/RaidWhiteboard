@@ -171,11 +171,8 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
 				RWB:ClearCanvas(false)
 			end
 
-			-- 2. Board sichtbar halten bzw. öffnen, ohne seinen Zustand
-			--    an die Gruppe zu senden.
-			if RWB.OpenBoard then
-				RWB:OpenBoard(false)
-			end
+			-- Das Board wird beim Gruppen-/Raidbeitritt niemals automatisch geöffnet.
+			-- Es bleibt lokal im zuletzt gewählten Sichtbarkeitszustand.
 
 			-- 3. Den vollständigen Zustand beim Lead/Assist anfordern.
 			--    Die Funktion sendet Q nach 2, 5 und 9 Sekunden, bis eine

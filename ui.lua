@@ -73,7 +73,20 @@ local function RefreshThicknessHighlights()
     end
 end
 
+local function RefreshBoardToggleButtonText()
+    if not toolbar or not toolbar.boardToggleButton then
+        return
+    end
+
+    if RWB.boardOpen then
+        toolbar.boardToggleButton:SetText("Für alle schließen")
+    else
+        toolbar.boardToggleButton:SetText("Für alle öffnen")
+    end
+end
+
 local function RefreshAllVisuals()
+    RefreshBoardToggleButtonText()
     RefreshDrawButtonText()
     RefreshToolHighlights()
     RefreshColorHighlights()
@@ -83,7 +96,7 @@ end
 local function CreateToolbar()
     local frame = CreateFrame("Frame", "RaidWhiteboardToolbar", UIParent)
 
-    frame:SetSize(220, 350)
+    frame:SetSize(220, 380)
     frame:SetFrameStrata("HIGH")
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -126,53 +139,74 @@ local function CreateToolbar()
     title:SetPoint("TOP", dragBar, "TOP", 0, -2)
     title:SetText(L["LABEL_MENU"])
 
-    CreateButton(
-        frame,
-        L["BUTTON_CLOSE"],
-        20,
-        -36,
-        180,
-        function()
-            RWB:CloseBoard(true)
-        end
-    )
+	frame.boardToggleButton = CreateButton(
+		frame,
+		"Für alle öffnen",
+		20,
+		-36,
+		180,
+		function()
+			if not RWB.canDraw then
+				RWB:Print("Nur Raidlead oder Assistenten können das Board für alle öffnen.")
+				return
+			end
 
-    frame.drawButton = CreateButton(
-        frame,
-        L["BUTTON_ACTIVATE"],
-        20,
-        -62,
-        180,
-        function()
-            RWB:SetMyDrawActive(not RWB.myDrawActive)
-            RefreshDrawButtonText()
-        end
-    )
+			if RWB.boardOpen then
+				RWB:CloseBoard(true)
+			else
+				RWB:OpenBoard(true)
+			end
+		end
+	)
 
-    CreateButton(
-        frame,
-        L["BUTTON_UNDO"],
-        20,
-        -88,
-        87,
-        function()
-            RWB:Undo()
-        end
-    )
+	frame.localCloseButton = CreateButton(
+		frame,
+		"Lokal schließen",
+		20,
+		-62,
+		180,
+		function()
+			-- Ausschließlich lokal: kein Broadcast.
+			RWB:SetMinimized(true)
+		end
+	)
 
-    CreateButton(
-        frame,
-        L["BUTTON_REDO"],
-        113,
-        -88,
-        87,
-        function()
-            RWB:Redo()
-        end
-    )
+	frame.drawButton = CreateButton(
+		frame,
+		L["BUTTON_ACTIVATE"],
+		20,
+		-88,
+		180,
+		function()
+			RWB:SetMyDrawActive(not RWB.myDrawActive)
+			RefreshDrawButtonText()
+		end
+	)
+
+	CreateButton(
+		frame,
+		L["BUTTON_UNDO"],
+		20,
+		-114,
+		87,
+		function()
+			RWB:Undo()
+		end
+	)
+
+	CreateButton(
+		frame,
+		L["BUTTON_REDO"],
+		113,
+		-114,
+		87,
+		function()
+			RWB:Redo()
+		end
+	)
 
     local toolLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    toolLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -118)
+    toolLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -141)
     toolLabel:SetText(L["LABEL_TOOL"])
 
     for i, tool in ipairs(tools) do
@@ -180,7 +214,7 @@ local function CreateToolbar()
             frame,
             tool[2],
             20 + (i - 1) * 62,
-            -134,
+            -154,
             58,
             function()
                 RWB.activeTool = tool[1]
@@ -192,7 +226,7 @@ local function CreateToolbar()
     end
 
     local colorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    colorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -170)
+    colorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -180)
     colorLabel:SetText(L["LABEL_COLOR"])
 
     for i, color in ipairs(colors) do
@@ -207,7 +241,7 @@ local function CreateToolbar()
             frame,
             "TOPLEFT",
             20 + col * 28,
-            -186 - row * 28
+            -196 - row * 28
         )
 
         button:SetBackdrop({
@@ -246,7 +280,7 @@ local function CreateToolbar()
     end
 
     local thicknessLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    thicknessLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 120, -170)
+    thicknessLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 120, -180)
     thicknessLabel:SetText(L["LABEL_THICKNESS"])
 
     local thicknesses = {2, 4, 8}
@@ -256,7 +290,7 @@ local function CreateToolbar()
             frame,
             tostring(thickness),
             120,
-            -186 - (i - 1) * 28,
+            -196 - (i - 1) * 28,
             60,
             function()
                 RWB.activeThickness = thickness

@@ -102,43 +102,112 @@ function RWB:GetMiniFrame()
     return frame
 end
 
+-- Lokale Anzeigeentscheidung:
+-- true  = großes Board lokal minimieren, Mini-Frame anzeigen
+-- false = großes Board lokal wiederherstellen
 function RWB:SetMinimized(value)
-    self.myMinimized = value
-    if value then
+    self.myMinimized = value and true or false
+
+    -- Falls das Board raidweit nicht freigegeben ist, bleibt jede
+    -- Darstellung geschlossen. Das ist wichtig bei einem /reload.
+    if not self.boardOpen then
         self:GetBoard():Hide()
-        if self.toolbarFrame then self.toolbarFrame:Hide() end
+
+        if self.toolbarFrame then
+            self.toolbarFrame:Hide()
+        end
+
+        if self.miniFrame then
+            self.miniFrame:Hide()
+        end
+
+        if self.UpdateMinimapButton then
+            self:UpdateMinimapButton()
+        end
+
+        return
+    end
+
+    if self.myMinimized then
+        self:GetBoard():Hide()
+
+        if self.toolbarFrame then
+            self.toolbarFrame:Hide()
+        end
+
         self:GetMiniFrame():Show()
     else
         self:GetBoard():Show()
-        if self.toolbarFrame and self.canDraw then self.toolbarFrame:Show() end
+        self:GetBoard():Raise()
+
         self:GetMiniFrame():Hide()
+
+        if self.RefreshToolbarState then
+            self:RefreshToolbarState()
+        end
     end
-    if self.UpdateMinimapButton then self:UpdateMinimapButton() end
+
+    if self.UpdateMinimapButton then
+        self:UpdateMinimapButton()
+    end
 end
 
+-- Ein globales O:1 und ein lokaler Klick des Leads auf "für alle öffnen"
+-- landen hier. Beim Öffnen wird eine vorherige lokale Minimierung
+-- absichtlich aufgehoben, damit alle Addon-Clients das große Board sehen.
 function RWB:OpenBoard(broadcast)
     self.boardOpen = true
-    if self.myMinimized then self:GetMiniFrame():Show() else self:GetBoard():Show() end
-    if self.RefreshToolbarState then self:RefreshToolbarState() end
-    if self.UpdateMinimapButton then self:UpdateMinimapButton() end
-    if broadcast and self.BroadcastBoardState then self:BroadcastBoardState(true) end
+    self:SetMinimized(false)
+
+    if broadcast and self.BroadcastBoardState then
+        self:BroadcastBoardState(true)
+    end
 end
 
+-- Ausschließlich als globale Lead/Assist-Aktion verwenden.
+-- Ein normaler Spieler sollte diese Funktion niemals über einen
+-- sichtbaren Schließen-Button aufrufen.
 function RWB:CloseBoard(broadcast)
     self.boardOpen = false
+    self.myMinimized = false
+
     self:GetBoard():Hide()
-    if self.toolbarFrame then self.toolbarFrame:Hide() end
-    if self.miniFrame then self.miniFrame:Hide() end
-    if self.UpdateMinimapButton then self:UpdateMinimapButton() end
-    if broadcast and self.BroadcastBoardState then self:BroadcastBoardState(false) end
+
+    if self.toolbarFrame then
+        self.toolbarFrame:Hide()
+    end
+
+    if self.miniFrame then
+        self.miniFrame:Hide()
+    end
+
+    -- Zeichnen darf nicht "unsichtbar" aktiv bleiben.
+    if self.myDrawActive then
+        self:SetMyDrawActive(false)
+    end
+
+    if self.UpdateMinimapButton then
+        self:UpdateMinimapButton()
+    end
+
+    if broadcast and self.BroadcastBoardState then
+        self:BroadcastBoardState(false)
+    end
 end
 
+-- Der zentrale globale Schalter – geeignet für Minimap-Button und
+-- den neuen Toolbar-Button. Nur Raidlead/Assist darf ihn auslösen.
 function RWB:ToggleBoard()
     if not self.canDraw then
         self:Print("Whiteboard-Steuerung nur für Raidleiter/Assistenten.")
         return
     end
-    if self.boardOpen then self:CloseBoard(true) else self:OpenBoard(true) end
+
+    if self.boardOpen then
+        self:CloseBoard(true)
+    else
+        self:OpenBoard(true)
+    end
 end
 
 function RWB:GetCursorCanvasPos()
