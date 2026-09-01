@@ -3,10 +3,10 @@
 -- SPDX-License-Identifier: LGPL-3.0-or-later
 
 RWB = RWB or {}
-local addonName = "RaidWhiteboard"
+local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 
-RWB.PREFIX = "RWB1"
-RWB.VERSION = "1.0.0"
+RWB.PREFIX = "RWB"
+RWB.VERSION = "1.1.0"
 RWB.strokes = {}
 RWB.texts = {}
 RWB.boardOpen = false
@@ -21,6 +21,9 @@ RWB._idCounter = 0
 RWB.undoStack = {}
 RWB.redoStack = {}
 RWB.hasReceivedSyncResponse = false
+
+local addonName = L["RWB_PRINT"]
+local addonVersion = "1.1.0"
 
 local defaults = {
     templates = {},
@@ -154,6 +157,7 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
         RWB.activeColorId = RWB.db.lastColorId or 1
         RWB.activeThickness = RWB.db.lastThickness or 4
         RefreshUi()
+		RWB:Print(addonName .. " v" .. addonVersion)
 	elseif event == "PARTY_LEADER_CHANGED"
 		or event == "RAID_ROSTER_UPDATE"
 		or event == "PARTY_MEMBERS_CHANGED" then

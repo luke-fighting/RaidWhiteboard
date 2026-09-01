@@ -1,6 +1,6 @@
 -- RaidWhiteboard - text.lua
 -- SPDX-License-Identifier: LGPL-3.0-or-later
-
+local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 RWB.textFontStrings = {}
 local inputBox
 

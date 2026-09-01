@@ -1,6 +1,6 @@
 -- RaidWhiteboard - minimap.lua
 -- SPDX-License-Identifier: LGPL-3.0-or-later
-
+local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 local ICON_LOCKED = "Interface\\Icons\\INV_Misc_Key_12"
 local ICON_READY = "Interface\\Icons\\INV_Misc_Map_01"
 local ICON_ACTIVE = "Interface\\Icons\\INV_Misc_Book_09"
@@ -32,7 +32,7 @@ function RWB:UpdateMinimapButton()
         button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
         button:SetScript("OnClick",function()
             if not RWB.canDraw then
-                RWB:Print("Whiteboard-Steuerung nur für Raidleiter/Assistenten.")
+                RWB:Print(L["MESSAGE_ACTION_DENIED_NO_LEAD"])
             elseif RWB.boardOpen then
                 RWB:CloseBoard(true)
             else
@@ -43,11 +43,11 @@ function RWB:UpdateMinimapButton()
             GameTooltip:SetOwner(self,"ANCHOR_LEFT")
             GameTooltip:AddLine("Raid Whiteboard")
             if not RWB.canDraw then
-                GameTooltip:AddLine("Gesperrt: kein Raidleiter/Assistent",.7,.7,.7)
+                GameTooltip:AddLine(L["TOOLTIP_LOCKED"],.7,.7,.7)
             elseif RWB.boardOpen then
-                GameTooltip:AddLine("Klicken zum Ausschalten",1,1,1)
+                GameTooltip:AddLine(L["TOOLTIP_DEACTIVATE"],1,1,1)
             else
-                GameTooltip:AddLine("Klicken zum Einschalten",1,1,1)
+                GameTooltip:AddLine(L["TOOLTIP_ACTIVATE"],1,1,1)
             end
             GameTooltip:Show()
         end)

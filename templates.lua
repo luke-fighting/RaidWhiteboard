@@ -1,6 +1,6 @@
 -- RaidWhiteboard - templates.lua
 -- SPDX-License-Identifier: LGPL-3.0-or-later
-
+local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 function RWB:CountObjects(tableValue)
     local count = 0
     for _ in pairs(tableValue or {}) do count = count + 1 end

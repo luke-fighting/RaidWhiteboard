@@ -1,10 +1,14 @@
 ## Interface: 30300
-## Title: RaidWhiteboard |cff33ccff(v1.0.0)|r
-## Notes: Whiteboard für Boss-Taktiken in WoW WotLK 3.3.5a.
+## Title: RaidWhiteboard |cff33agff(v1.1.0)|r
+## Notes: Whiteboard for collaborative scribbling in WoW WotLK 3.3.5a.
 ## Author: Lukas Koschine
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariables: RaidWhiteboardDB
 ## X-License: LGPL-3.0-or-later
+#@no-lib-strip@
+embeds.xml
+locale\locale.xml
+#@end-no-lib-strip@
 
 libs\libstub\libstub.lua
 libs\chatthrottlelib\chatthrottlelib.lua

@@ -1,0 +1,23 @@
+local L = LibStub("AceLocale-3.0"):NewLocale("RWB", "enUS", true)
+if not L then return end
+
+L["RWB_PRINT"] = "RaidWhiteboard"
+L["BUTTON_CLOSE"] = "Close"
+L["BUTTON_ACTIVATE"] = "Enable Drawing"
+L["BUTTON_DEACTIVATE"] = "Disable Drawing"
+L["BUTTON_MAXIMIZE"] = "Display board"
+L["BUTTON_UNDO"] = "Undo"
+L["BUTTON_REDO"] = "Redo"
+L["BUTTON_PEN"] = "Pen"
+L["BUTTON_TEXT"] = "Text"
+L["BUTTON_RUBBER"] = "Eraser"
+L["LABEL_RAID_WHITEBOARD"] = "Raid Whiteboard"
+L["LABEL_MENU"] = "Menu"
+L["LABEL_COLOR"] = "Color"
+L["LABEL_THICKNESS"] = "Thickness"
+L["BUTTON_CLEAR"] = "Clear Board"
+L["LABEL_TOOL"] = "Tool"
+L["MESSAGE_ACTION_DENIED_NO_LEAD"] = "Whiteboard operation only permitted for raid/party lead or assistants."
+L["TOOLTIP_LOCKED"] = "Locked: not a lead or assistant in raid/party"
+L["TOOLTIP_DEACTIVATE"] = "Click to close board"
+L["TOOLTIP_ACTIVATE"] = "Click to open board"

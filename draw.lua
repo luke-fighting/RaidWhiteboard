@@ -1,6 +1,6 @@
 -- RaidWhiteboard - draw.lua
 -- SPDX-License-Identifier: LGPL-3.0-or-later
-
+local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 local BOARD_NAME = "RaidWhiteboardBoard"
 local LINE_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 local BOARD_WIDTH, BOARD_HEIGHT = 800, 500
@@ -95,7 +95,7 @@ function RWB:GetMiniFrame()
     local button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     button:SetSize(130, 22)
     button:SetPoint("CENTER")
-    button:SetText("Board maximieren")
+    button:SetText(L["BUTTON_MAXIMIZE"])
     button:SetScript("OnClick", function() RWB:SetMinimized(false) end)
     frame:Hide()
     self.miniFrame = frame

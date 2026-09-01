@@ -1,5 +1,6 @@
 -- RaidWhiteboard - ui.lua
 -- SPDX-License-Identifier: LGPL-3.0-or-later
+local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 
 local toolbar
 local toolButtons = {}
@@ -7,9 +8,9 @@ local colorButtons = {}
 local thicknessButtons = {}
 
 local tools = {
-    {"PEN", "Stift"},
-    {"TEXT", "Text"},
-    {"ERASER", "Radierer"},
+    {"PEN", L["BUTTON_PEN"]},
+    {"TEXT", L["BUTTON_TEXT"]},
+    {"ERASER", L["BUTTON_RUBBER"]},
 }
 
 local colors = {
@@ -36,9 +37,9 @@ local function RefreshDrawButtonText()
     end
 
     if RWB.myDrawActive then
-        toolbar.drawButton:SetText("Zeichnen deaktivieren")
+        toolbar.drawButton:SetText(L["BUTTON_DEACTIVATE"])
     else
-        toolbar.drawButton:SetText("Zeichnen aktivieren")
+        toolbar.drawButton:SetText(L["BUTTON_ACTIVATE"])
     end
 end
 
@@ -123,11 +124,11 @@ local function CreateToolbar()
 
     local title = dragBar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     title:SetPoint("TOP", dragBar, "TOP", 0, -2)
-    title:SetText("Zeichenmenü")
+    title:SetText(L["LABEL_MENU"])
 
     CreateButton(
         frame,
-        "Board schließen",
+        L["BUTTON_CLOSE"],
         20,
         -36,
         180,
@@ -138,7 +139,7 @@ local function CreateToolbar()
 
     frame.drawButton = CreateButton(
         frame,
-        "Zeichnen aktivieren",
+        L["BUTTON_ACTIVATE"],
         20,
         -62,
         180,
@@ -150,7 +151,7 @@ local function CreateToolbar()
 
     CreateButton(
         frame,
-        "Rückgängig",
+        L["BUTTON_UNDO"],
         20,
         -88,
         87,
@@ -161,7 +162,7 @@ local function CreateToolbar()
 
     CreateButton(
         frame,
-        "Wiederherst.",
+        L["BUTTON_REDO"],
         113,
         -88,
         87,
@@ -172,7 +173,7 @@ local function CreateToolbar()
 
     local toolLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     toolLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -118)
-    toolLabel:SetText("Werkzeug:")
+    toolLabel:SetText(L["LABEL_TOOL"])
 
     for i, tool in ipairs(tools) do
         local button = CreateButton(
@@ -192,7 +193,7 @@ local function CreateToolbar()
 
     local colorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     colorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -170)
-    colorLabel:SetText("Farbe:")
+    colorLabel:SetText(L["LABEL_COLOR"])
 
     for i, color in ipairs(colors) do
         local row = math.floor((i - 1) / 3)
@@ -246,7 +247,7 @@ local function CreateToolbar()
 
     local thicknessLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     thicknessLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 120, -170)
-    thicknessLabel:SetText("Dicke:")
+    thicknessLabel:SetText(L["LABEL_THICKNESS"])
 
     local thicknesses = {2, 4, 8}
 
@@ -273,7 +274,7 @@ local function CreateToolbar()
 
     CreateButton(
         frame,
-        "Alles löschen",
+        L["BUTTON_CLEAR"],
         20,
         -304,
         180,
