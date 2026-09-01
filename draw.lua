@@ -21,8 +21,8 @@ RWB.backgroundMode = RWB.backgroundMode or "transparent"
 
 local BACKGROUND_PRESETS = {
     transparent = { r = 0, g = 0, b = 0, a = 0.60 },
-    dark = { r = 0, g = 0, b = 0, a = 0.88 },
-    light = { r = 1, g = 1, b = 1, a = 0.78 },
+    dark = { r = 0, g = 0, b = 0, a = 1 },
+    light = { r = 1, g = 1, b = 1, a = 1 },
 }
 
 local BACKGROUND_ORDER = { "transparent", "dark", "light" }
@@ -146,6 +146,12 @@ local function CreateBoard()
     minimize:SetSize(20, 16)
     minimize:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -2, -1)
     minimize:SetText("_")
+    board.minimizeButton = minimize
+    if RWB.canDraw then
+        minimize:Enable()
+    else
+        minimize:Disable()
+    end
     minimize:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         GameTooltip:AddLine(L["TOOLTIP_MINIMIZE"])
@@ -196,8 +202,6 @@ end
 function RWB:GetBoard()
     if not self.board then
         self.board, self.canvas = CreateBoard()
-        -- CreateBoard runs before self.board is assigned, so apply the
-        -- persisted background mode and initialize the button here.
         self:ApplyBackgroundMode()
         self:UpdateBackgroundButton()
     end
@@ -207,6 +211,19 @@ end
 function RWB:GetCanvas()
     if not self.canvas then self:GetBoard() end
     return self.canvas
+end
+
+function RWB:UpdateMinimizeButton()
+    if not self.board or not self.board.minimizeButton then return end
+
+    -- Only solo players, party leads, and raid leads/assistants may
+    -- locally hide the board. Normal group members can still see the
+    -- board through Presentation, but have no local minimize control.
+    if self.canDraw then
+        self.board.minimizeButton:Enable()
+    else
+        self.board.minimizeButton:Disable()
+    end
 end
 
 function RWB:SetMinimized(value)

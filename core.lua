@@ -87,6 +87,7 @@ function RWB:RefreshVisibility()
         if self.toolbarFrame then self.toolbarFrame:Hide() end
     end
 
+    if self.UpdateMinimizeButton then self:UpdateMinimizeButton() end
     if self.UpdateMinimapButton then self:UpdateMinimapButton() end
 end
 
