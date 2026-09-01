@@ -1,9 +1,8 @@
 -- RaidWhiteboard - minimap.lua
 -- SPDX-License-Identifier: LGPL-3.0-or-later
 local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
-local ICON_LOCKED = "Interface\\Icons\\INV_Misc_Key_12"
-local ICON_READY = "Interface\\Icons\\INV_Misc_Map_01"
-local ICON_ACTIVE = "Interface\\Icons\\INV_Misc_Book_09"
+local ICON_CLOSED = "Interface\\Icons\\INV_Misc_Map_01"
+local ICON_OPEN = "Interface\\Icons\\INV_Misc_Book_09"
 local button
 
 local function Place(btn,angle)
@@ -21,37 +20,39 @@ function RWB:UpdateMinimapButton()
         button:SetFrameLevel(Minimap:GetFrameLevel()+10)
         button:RegisterForClicks("LeftButtonUp")
         button:RegisterForDrag("LeftButton")
+
         local icon = button:CreateTexture(nil,"BACKGROUND")
         icon:SetSize(20,20)
         icon:SetPoint("CENTER",0,1)
         button.icon = icon
+
         local border = button:CreateTexture(nil,"OVERLAY")
         border:SetSize(53,53)
         border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
         border:SetPoint("TOPLEFT",0,0)
         button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+
         button:SetScript("OnClick",function()
-            if not RWB.canDraw then
-                RWB:Print(L["MESSAGE_ACTION_DENIED_NO_LEAD"])
-            elseif RWB.boardOpen then
-                RWB:CloseBoard(true)
-            else
-                RWB:OpenBoard(true)
-            end
+            -- Minimap is strictly local. Global open/close is a menu action.
+            RWB:ToggleLocalBoard()
         end)
+
         button:SetScript("OnEnter",function(self)
             GameTooltip:SetOwner(self,"ANCHOR_LEFT")
             GameTooltip:AddLine("Raid Whiteboard")
-            if not RWB.canDraw then
-                GameTooltip:AddLine(L["TOOLTIP_LOCKED"],.7,.7,.7)
-            elseif RWB.boardOpen then
-                GameTooltip:AddLine(L["TOOLTIP_DEACTIVATE"],1,1,1)
+            if RWB.boardOpen then
+                if RWB.myMinimized then
+                    GameTooltip:AddLine(L["TOOLTIP_ACTIVATE"],1,1,1)
+                else
+                    GameTooltip:AddLine(L["TOOLTIP_DEACTIVATE"],1,1,1)
+                end
             else
-                GameTooltip:AddLine(L["TOOLTIP_ACTIVATE"],1,1,1)
+                GameTooltip:AddLine(L["TOOLTIP_GLOBAL_CLOSED"],.7,.7,.7)
             end
             GameTooltip:Show()
         end)
         button:SetScript("OnLeave",function() GameTooltip:Hide() end)
+
         button:SetScript("OnDragStart",function(self)
             self:SetScript("OnUpdate",function(self)
                 local mx,my = Minimap:GetCenter()
@@ -65,15 +66,12 @@ function RWB:UpdateMinimapButton()
         button:SetScript("OnDragStop",function(self) self:SetScript("OnUpdate",nil) end)
         Place(button,(RWB.db and RWB.db.minimapAngle) or 200)
     end
-    if not self.canDraw then
-        button.icon:SetTexture(ICON_LOCKED)
-        button:SetAlpha(.65)
-    elseif self.boardOpen then
-        button.icon:SetTexture(ICON_ACTIVE)
-        button:SetAlpha(1)
+
+    if self.boardOpen and not self.myMinimized then
+        button.icon:SetTexture(ICON_OPEN)
     else
-        button.icon:SetTexture(ICON_READY)
-        button:SetAlpha(1)
+        button.icon:SetTexture(ICON_CLOSED)
     end
+    button:SetAlpha(1)
     button:Show()
 end

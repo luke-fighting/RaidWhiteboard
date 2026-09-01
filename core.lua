@@ -33,7 +33,6 @@ local defaults = {
     minimapAngle = 200,
     boardPoint = "CENTER", boardRelativePoint = "CENTER", boardX = -120, boardY = 0,
     toolbarPoint = "CENTER", toolbarRelativePoint = "CENTER", toolbarX = 300, toolbarY = 0,
-    miniPoint = "CENTER", miniRelativePoint = "CENTER", miniX = -120, miniY = 300,
 }
 
 function RWB:Print(message)

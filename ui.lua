@@ -79,9 +79,9 @@ local function RefreshBoardToggleButtonText()
     end
 
     if RWB.boardOpen then
-        toolbar.boardToggleButton:SetText("Für alle schließen")
+        toolbar.boardToggleButton:SetText(L["BUTTON_CLOSE_ALL"])
     else
-        toolbar.boardToggleButton:SetText("Für alle öffnen")
+        toolbar.boardToggleButton:SetText(L["BUTTON_OPEN_ALL"])
     end
 end
 
@@ -96,7 +96,7 @@ end
 local function CreateToolbar()
     local frame = CreateFrame("Frame", "RaidWhiteboardToolbar", UIParent)
 
-    frame:SetSize(220, 380)
+    frame:SetSize(220, 410)
     frame:SetFrameStrata("HIGH")
     frame:SetMovable(true)
     frame:EnableMouse(true)
@@ -138,38 +138,6 @@ local function CreateToolbar()
     local title = dragBar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     title:SetPoint("TOP", dragBar, "TOP", 0, -2)
     title:SetText(L["LABEL_MENU"])
-
-	frame.boardToggleButton = CreateButton(
-		frame,
-		"Für alle öffnen",
-		20,
-		-36,
-		180,
-		function()
-			if not RWB.canDraw then
-				RWB:Print("Nur Raidlead oder Assistenten können das Board für alle öffnen.")
-				return
-			end
-
-			if RWB.boardOpen then
-				RWB:CloseBoard(true)
-			else
-				RWB:OpenBoard(true)
-			end
-		end
-	)
-
-	frame.localCloseButton = CreateButton(
-		frame,
-		"Lokal schließen",
-		20,
-		-62,
-		180,
-		function()
-			-- Ausschließlich lokal: kein Broadcast.
-			RWB:SetMinimized(true)
-		end
-	)
 
 	frame.drawButton = CreateButton(
 		frame,
@@ -317,13 +285,33 @@ local function CreateToolbar()
         end
     )
 
+    frame.boardToggleButton = CreateButton(
+        frame,
+        L["BUTTON_OPEN_ALL"],
+        20,
+        -330,
+        180,
+        function()
+            if not RWB.canDraw then
+                RWB:Print(L["MESSAGE_ACTION_DENIED_NO_LEAD"])
+                return
+            end
+
+            if RWB.boardOpen then
+                RWB:CloseBoard(true)
+            else
+                RWB:OpenBoard(true)
+            end
+        end
+    )
+
     frame:Hide()
 
     return frame
 end
 
 function RWB:RefreshToolbarState()
-    if not self.canDraw or not self.boardOpen or self.myMinimized then
+    if not self.canDraw or self.myMinimized then
         if toolbar then
             toolbar:Hide()
         end
@@ -334,6 +322,9 @@ function RWB:RefreshToolbarState()
     if not toolbar then
         toolbar = CreateToolbar()
         self.toolbarFrame = toolbar
+    end
+
+    if self.board then
         self:LinkBoardAndToolbar(toolbar)
     end
 
@@ -344,5 +335,5 @@ end
 SLASH_RAIDWHITEBOARD1 = "/rwb"
 
 SlashCmdList.RAIDWHITEBOARD = function()
-    RWB:ToggleBoard()
+    RWB:ToggleLocalBoard()
 end
