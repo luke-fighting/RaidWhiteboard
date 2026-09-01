@@ -26,7 +26,7 @@ RWB.redoStack = {}
 RWB.hasReceivedSyncResponse = false
 
 local addonName = L["RWB_PRINT"]
-local addonVersion = RWB.VERSION
+local addonVersion = "1.2.0"
 
 local defaults = {
     templates = {},
@@ -37,6 +37,7 @@ local defaults = {
     boardPoint = "CENTER", boardRelativePoint = "CENTER", boardX = -120, boardY = 0,
     toolbarPoint = "CENTER", toolbarRelativePoint = "CENTER", toolbarX = 300, toolbarY = 0,
     syncEnabledV2 = true,
+    backgroundMode = "transparent",
 }
 
 function RWB:Print(message)
@@ -195,6 +196,11 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
             RWB.db.syncEnabledV2 = true
         end
         RWB.syncEnabled = RWB.db.syncEnabledV2 ~= false
+        RWB.backgroundMode = RWB.db.backgroundMode or "transparent"
+        if RWB.backgroundMode ~= "transparent" and RWB.backgroundMode ~= "dark" and RWB.backgroundMode ~= "light" then
+            RWB.backgroundMode = "transparent"
+            RWB.db.backgroundMode = "transparent"
+        end
         -- Always start locally hidden after login/reload.
         RWB.myMinimized = true
         RWB.presentation = false

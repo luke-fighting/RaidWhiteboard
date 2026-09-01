@@ -17,6 +17,59 @@ RWB._currentStrokeId = nil
 RWB._currentPoints = nil
 RWB._lastX = nil
 RWB._lastY = nil
+RWB.backgroundMode = RWB.backgroundMode or "transparent"
+
+local BACKGROUND_PRESETS = {
+    transparent = { r = 0, g = 0, b = 0, a = 0.60 },
+    dark = { r = 0, g = 0, b = 0, a = 0.88 },
+    light = { r = 1, g = 1, b = 1, a = 0.78 },
+}
+
+local BACKGROUND_ORDER = { "transparent", "dark", "light" }
+
+function RWB:ApplyBackgroundMode()
+    if not self.board then return end
+
+    local preset = BACKGROUND_PRESETS[self.backgroundMode] or BACKGROUND_PRESETS.transparent
+    self.board:SetBackdropColor(preset.r, preset.g, preset.b, preset.a)
+end
+
+function RWB:SetBackgroundMode(mode)
+    if not BACKGROUND_PRESETS[mode] then
+        mode = "transparent"
+    end
+
+    self.backgroundMode = mode
+
+    if self.db then
+        self.db.backgroundMode = mode
+    end
+
+    self:ApplyBackgroundMode()
+
+    if self.UpdateBackgroundButton then
+        self:UpdateBackgroundButton()
+    end
+end
+
+function RWB:CycleBackgroundMode()
+    local current = self.backgroundMode or "transparent"
+    local index = 1
+
+    for i, mode in ipairs(BACKGROUND_ORDER) do
+        if mode == current then
+            index = i
+            break
+        end
+    end
+
+    index = index + 1
+    if index > #BACKGROUND_ORDER then
+        index = 1
+    end
+
+    self:SetBackgroundMode(BACKGROUND_ORDER[index])
+end
 
 function RWB:LinkBoardAndToolbar(movedFrame)
     if not self.board then return end
@@ -70,6 +123,24 @@ local function CreateBoard()
     title:SetPoint("TOP", bar, "TOP", 0, -2)
     title:SetText(L["LABEL_RAID_WHITEBOARD"])
 
+    local background = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
+    background:SetSize(24, 16)
+    background:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -24, -1)
+    background:SetScript("OnClick", function()
+        RWB:CycleBackgroundMode()
+    end)
+    background:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(L["LABEL_BACKGROUND_MODE"])
+        GameTooltip:AddLine(RWB.GetBackgroundModeLabel and RWB:GetBackgroundModeLabel() or "")
+        GameTooltip:AddLine(L["TOOLTIP_BACKGROUND_CYCLE"], .7, .7, .7)
+        GameTooltip:Show()
+    end)
+    background:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    board.backgroundButton = background
+
     local minimize = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
     minimize:SetSize(20, 16)
     minimize:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -2, -1)
@@ -88,8 +159,33 @@ local function CreateBoard()
 
     board.canvas = canvas
     board:Hide()
+    RWB:ApplyBackgroundMode()
+    if RWB.UpdateBackgroundButton then RWB:UpdateBackgroundButton() end
 
     return board, canvas
+end
+
+function RWB:GetBackgroundModeLabel()
+    local labels = {
+        transparent = L["BACKGROUND_TRANSPARENT"],
+        dark = L["BACKGROUND_DARK"],
+        light = L["BACKGROUND_LIGHT"],
+    }
+    return labels[self.backgroundMode or "transparent"] or labels.transparent
+end
+
+function RWB:GetBackgroundModeButtonText()
+    local labels = {
+        transparent = L["BACKGROUND_SHORT_TRANSPARENT"],
+        dark = L["BACKGROUND_SHORT_DARK"],
+        light = L["BACKGROUND_SHORT_LIGHT"],
+    }
+    return labels[self.backgroundMode or "transparent"] or labels.transparent
+end
+
+function RWB:UpdateBackgroundButton()
+    if not self.board or not self.board.backgroundButton then return end
+    self.board.backgroundButton:SetText(self:GetBackgroundModeButtonText())
 end
 
 function RWB:GetBoard()
