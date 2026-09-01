@@ -6,13 +6,16 @@ RWB = RWB or {}
 local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 
 RWB.PREFIX = "RWB"
-RWB.VERSION = "1.1.0"
+RWB.VERSION = "1.2.0"
 RWB.strokes = {}
 RWB.texts = {}
 RWB.boardOpen = false
+RWB.presentation = false
+RWB.syncEnabled = true
 RWB.canDraw = false
 RWB.myDrawActive = false
-RWB.myMinimized = false
+-- true = locally hidden. The addon starts hidden after login.
+RWB.myMinimized = true
 RWB.activeTool = "PEN"
 RWB.activeColor = { r = 1, g = 0.15, b = 0.15, a = 1 }
 RWB.activeColorId = 1
@@ -23,7 +26,7 @@ RWB.redoStack = {}
 RWB.hasReceivedSyncResponse = false
 
 local addonName = L["RWB_PRINT"]
-local addonVersion = "1.1.0"
+local addonVersion = "1.2.0"
 
 local defaults = {
     templates = {},
@@ -33,7 +36,8 @@ local defaults = {
     minimapAngle = 200,
     boardPoint = "CENTER", boardRelativePoint = "CENTER", boardX = -120, boardY = 0,
     toolbarPoint = "CENTER", toolbarRelativePoint = "CENTER", toolbarX = 300, toolbarY = 0,
-    miniPoint = "CENTER", miniRelativePoint = "CENTER", miniX = -120, miniY = 300,
+    syncEnabledV2 = true,
+    backgroundMode = "transparent",
 }
 
 function RWB:Print(message)
@@ -42,6 +46,7 @@ end
 
 function RWB:IsInRaidGroup() return GetNumRaidMembers() > 0 end
 function RWB:IsInPartyGroup() return GetNumPartyMembers() > 0 end
+function RWB:IsInGroup() return self:IsInRaidGroup() or self:IsInPartyGroup() end
 
 function RWB:UpdateDrawPermission()
     if self:IsInRaidGroup() then
@@ -52,6 +57,38 @@ function RWB:UpdateDrawPermission()
         self.canDraw = true
     end
     return self.canDraw
+end
+
+function RWB:ShouldShowBoard()
+    if not self:IsInGroup() then
+        return not self.myMinimized
+    end
+
+    -- Lead/assist may always control their own local visibility.
+    if self.canDraw then
+        return not self.myMinimized
+    end
+
+    -- Normal group members only see the board through Presentation.
+    return self.presentation
+end
+
+function RWB:RefreshVisibility()
+    local visible = self:ShouldShowBoard()
+    local board = self:GetBoard()
+
+    if visible then
+        board:Show()
+        board:Raise()
+        if self.RefreshToolbarState then self:RefreshToolbarState() end
+    else
+        board:Hide()
+        if self.myDrawActive then self:SetMyDrawActive(false) end
+        if self.toolbarFrame then self.toolbarFrame:Hide() end
+    end
+
+    if self.UpdateMinimizeButton then self:UpdateMinimizeButton() end
+    if self.UpdateMinimapButton then self:UpdateMinimapButton() end
 end
 
 function RWB:GenerateStrokeId()
@@ -123,6 +160,7 @@ eventFrame:RegisterEvent("PARTY_MEMBERS_CHANGED")
 
 local function RefreshUi()
     RWB:UpdateDrawPermission()
+    if RWB.RefreshVisibility then RWB:RefreshVisibility() end
     if RWB.UpdateMinimapButton then RWB:UpdateMinimapButton() end
     if RWB.RefreshToolbarState then RWB:RefreshToolbarState() end
 end
@@ -136,7 +174,7 @@ local function ScheduleSync()
             elapsed = elapsed + dt
             if elapsed >= delay then
                 self:SetScript("OnUpdate", nil)
-                if not RWB.hasReceivedSyncResponse and (RWB:IsInRaidGroup() or RWB:IsInPartyGroup()) and RWB.RequestSync then
+                if not RWB.hasReceivedSyncResponse and RWB:IsInGroup() and RWB.RequestSync then
                     RWB:RequestSync()
                 end
             end
@@ -152,48 +190,71 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
         for key, value in pairs(defaults) do
             if RaidWhiteboardDB[key] == nil then RaidWhiteboardDB[key] = value end
         end
+
         RWB.db = RaidWhiteboardDB
+        -- New switch version: default ON, independent of older test settings.
+        if RWB.db.syncEnabledV2 == nil then
+            RWB.db.syncEnabledV2 = true
+        end
+        RWB.syncEnabled = RWB.db.syncEnabledV2 ~= false
+        RWB.backgroundMode = RWB.db.backgroundMode or "transparent"
+        if RWB.backgroundMode ~= "transparent" and RWB.backgroundMode ~= "dark" and RWB.backgroundMode ~= "light" then
+            RWB.backgroundMode = "transparent"
+            RWB.db.backgroundMode = "transparent"
+        end
+        -- Always start locally hidden after login/reload.
+        RWB.myMinimized = true
+        RWB.presentation = false
+        RWB.boardOpen = false
+
         if RWB.db.lastColor then RWB.activeColor = RWB.db.lastColor end
         RWB.activeColorId = RWB.db.lastColorId or 1
         RWB.activeThickness = RWB.db.lastThickness or 4
+
         RefreshUi()
-		RWB:Print(addonName .. " v" .. addonVersion)
-	elseif event == "PARTY_LEADER_CHANGED"
-		or event == "RAID_ROSTER_UPDATE"
-		or event == "PARTY_MEMBERS_CHANGED" then
+        RWB:Print(addonName .. " v" .. addonVersion)
 
-		local isNowInGroup = RWB:IsInRaidGroup() or RWB:IsInPartyGroup()
+    elseif event == "PARTY_LEADER_CHANGED"
+        or event == "RAID_ROSTER_UPDATE"
+        or event == "PARTY_MEMBERS_CHANGED" then
 
-		if not wasInGroup and isNowInGroup then
-			-- 1. Das alte Solo-Board nur auf diesem Client löschen.
-			--    false verhindert einen X/CLEAR-Broadcast an den Raid.
-			if RWB.ClearCanvas then
-				RWB:ClearCanvas(false)
-			end
+        local isNowInGroup = RWB:IsInGroup()
 
-			-- 2. Board sichtbar halten bzw. öffnen, ohne seinen Zustand
-			--    an die Gruppe zu senden.
-			if RWB.OpenBoard then
-				RWB:OpenBoard(false)
-			end
+        if not wasInGroup and isNowInGroup then
+            -- A normal group member must discard private solo content before
+            -- accepting the group's presentation/snapshot.
+            RWB:UpdateDrawPermission()
+            if not RWB.canDraw then
+                if RWB.ClearCanvas then RWB:ClearCanvas(false) end
+                RWB.myMinimized = false
+                if RWB.GetBoard then RWB:GetBoard():Hide() end
+                if RWB.toolbarFrame then RWB.toolbarFrame:Hide() end
+            end
+            ScheduleSync()
 
-			-- 3. Den vollständigen Zustand beim Lead/Assist anfordern.
-			--    Die Funktion sendet Q nach 2, 5 und 9 Sekunden, bis eine
-			--    Antwort als empfangen markiert wurde.
-			ScheduleSync()
-		end
+        elseif wasInGroup and not isNowInGroup then
+            -- Leaving a group starts a new private/solo presentation.
+            RWB.presentation = false
+            RWB.boardOpen = false
+            RWB.myMinimized = true
+            if RWB.GetBoard then RWB:GetBoard():Hide() end
+            if RWB.toolbarFrame then RWB.toolbarFrame:Hide() end
+        end
 
-		wasInGroup = isNowInGroup
+        wasInGroup = isNowInGroup
 
-		local before = RWB.canDraw
-		RWB:UpdateDrawPermission()
+        RWB:UpdateDrawPermission()
+        RefreshUi()
 
-		if before ~= RWB.canDraw and RWB.RefreshToolbarState then
-			RWB:RefreshToolbarState()
-		end
     elseif event == "PLAYER_ENTERING_WORLD" then
+        -- Login/reload: never show the addon automatically.
+        RWB.myMinimized = true
+        RWB.presentation = false
+        RWB.boardOpen = false
+        RWB:UpdateDrawPermission()
         RefreshUi()
-		wasInGroup = RWB:IsInRaidGroup() or RWB:IsInPartyGroup()
+
+        wasInGroup = RWB:IsInGroup()
         if RWB.RegisterComm then RWB:RegisterComm() end
         ScheduleSync()
     else
