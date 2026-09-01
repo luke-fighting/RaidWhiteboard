@@ -23,12 +23,23 @@ local colors = {
     {6, .6, .2, .9},
 }
 
-local function CreateButton(parent, label, x, y, width, callback)
+local function SetTooltip(button, text)
+    if not button or not text then return end
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(text)
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", function() GameTooltip:Hide() end)
+end
+
+local function CreateButton(parent, label, x, y, width, callback, tooltip)
     local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
     button:SetSize(width, 20)
     button:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
     button:SetText(label)
     button:SetScript("OnClick", callback)
+    SetTooltip(button, tooltip)
     return button
 end
 
@@ -155,16 +166,17 @@ local function CreateToolbar()
 
             RWB:SetMyDrawActive(not RWB.myDrawActive)
             RefreshDrawButtonText()
-        end
+        end,
+        L["TOOLTIP_DRAW"]
     )
 
     CreateButton(frame, L["BUTTON_UNDO"], 20, -62, 87, function()
         if RWB.canDraw then RWB:Undo() end
-    end)
+    end, L["TOOLTIP_UNDO"])
 
     CreateButton(frame, L["BUTTON_REDO"], 113, -62, 87, function()
         if RWB.canDraw then RWB:Redo() end
-    end)
+    end, L["TOOLTIP_REDO"])
 
     local toolLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     toolLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -89)
@@ -181,7 +193,8 @@ local function CreateToolbar()
                 if not RWB.canDraw then return end
                 RWB.activeTool = tool[1]
                 RefreshToolHighlights()
-            end
+            end,
+            L["TOOLTIP_" .. tool[1]]
         )
 
         toolButtons[tool[1]] = button
@@ -234,6 +247,7 @@ local function CreateToolbar()
         end)
 
         colorButtons[colorId] = button
+        SetTooltip(button, L["TOOLTIP_COLOR"])
     end
 
     local thicknessLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -259,7 +273,8 @@ local function CreateToolbar()
                 end
 
                 RefreshThicknessHighlights()
-            end
+            end,
+            L["TOOLTIP_THICKNESS"]
         )
 
         thicknessButtons[thickness] = button
@@ -271,7 +286,8 @@ local function CreateToolbar()
         20, -252, 180,
         function()
             if RWB.canDraw then RWB:ClearCanvas(true) end
-        end
+        end,
+        L["TOOLTIP_CLEAR"]
     )
 
     frame.syncButton = CreateButton(
@@ -292,7 +308,8 @@ local function CreateToolbar()
             end
 
             RefreshSwitches()
-        end
+        end,
+        L["TOOLTIP_SYNC"]
     )
 
     frame.presentationButton = CreateButton(
@@ -304,7 +321,8 @@ local function CreateToolbar()
 
             RWB:SetPresentation(not RWB.presentation, true)
             RefreshSwitches()
-        end
+        end,
+        L["TOOLTIP_PRESENTATION"]
     )
 
     frame:Hide()

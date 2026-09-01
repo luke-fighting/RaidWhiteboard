@@ -126,6 +126,7 @@ local function CreateBoard()
     local background = CreateFrame("Button", nil, bar, "UIPanelButtonTemplate")
     background:SetSize(24, 16)
     background:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -24, -1)
+    background:SetText(RWB:GetBackgroundModeButtonText())
     background:SetScript("OnClick", function()
         RWB:CycleBackgroundMode()
     end)
@@ -145,6 +146,12 @@ local function CreateBoard()
     minimize:SetSize(20, 16)
     minimize:SetPoint("TOPRIGHT", bar, "TOPRIGHT", -2, -1)
     minimize:SetText("_")
+    minimize:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:AddLine(L["TOOLTIP_MINIMIZE"])
+        GameTooltip:Show()
+    end)
+    minimize:SetScript("OnLeave", function() GameTooltip:Hide() end)
     minimize:SetScript("OnClick", function()
         if RWB.canDraw then
             RWB:SetMinimized(true)
@@ -159,8 +166,6 @@ local function CreateBoard()
 
     board.canvas = canvas
     board:Hide()
-    RWB:ApplyBackgroundMode()
-    if RWB.UpdateBackgroundButton then RWB:UpdateBackgroundButton() end
 
     return board, canvas
 end
@@ -191,6 +196,10 @@ end
 function RWB:GetBoard()
     if not self.board then
         self.board, self.canvas = CreateBoard()
+        -- CreateBoard runs before self.board is assigned, so apply the
+        -- persisted background mode and initialize the button here.
+        self:ApplyBackgroundMode()
+        self:UpdateBackgroundButton()
     end
     return self.board
 end
