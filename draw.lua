@@ -132,21 +132,21 @@ function RWB:SetPresentation(enabled, broadcast)
     self.presentation = enabled and true or false
     self.boardOpen = self.presentation
 
-    -- Presentation controls ordinary group members. It must never change the
-    -- lead/assistant's own local visibility.
-    if self:IsInGroup() and not self.canDraw then
-        self.myMinimized = not self.presentation
+    -- Presentation ON opens the board on every client, including the lead
+    -- and assistants. They can immediately minimize it locally afterwards.
+    -- Presentation OFF only hides ordinary group members; lead/assist keep
+    -- their local visibility unchanged.
+    if self.presentation then
+        self.myMinimized = false
+    elseif self:IsInGroup() and not self.canDraw then
+        self.myMinimized = true
     end
 
     self:RefreshVisibility()
 
     if broadcast and self.BroadcastBoardState then
+        -- Presentation is visibility only. It never transfers canvas data.
         self:BroadcastBoardState(self.presentation)
-        -- Presentation ON always sends the complete current canvas, even when
-        -- outgoing incremental Sync is disabled.
-        if self.presentation and self.BroadcastCurrentCanvas then
-            self:BroadcastCurrentCanvas()
-        end
     end
 end
 
@@ -352,6 +352,29 @@ end
 
 function RWB:EraseAtCursor()
     local x,y = self:GetCursorCanvasPos()
+
+    -- Text is checked first so the eraser can remove a text object directly.
+    -- FontStrings are positioned by their bottom-left corner on the canvas.
+    for id,data in pairs(self.texts) do
+        local fontString = self.textFontStrings and self.textFontStrings[id]
+        if fontString then
+            local textX = data.x or 0
+            local textY = data.y or 0
+            local width = fontString:GetWidth() or 0
+            local height = fontString:GetHeight() or (data.fontSize or 14)
+
+            if x >= textX - 4 and x <= textX + width + 4
+                and y >= textY - 4 and y <= textY + height + 4 then
+                local oldData = data
+                self:RemoveText(id)
+                self:PushUndoAction({kind="text", id=id, data=oldData})
+                if self.BroadcastRemoveText then
+                    self:BroadcastRemoveText(id)
+                end
+                return
+            end
+        end
+    end
 
     for id,data in pairs(self.strokes) do
         for _,point in ipairs(data.points) do

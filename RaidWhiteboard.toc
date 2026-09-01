@@ -2,7 +2,7 @@
 ## Title: RaidWhiteboard |cff33agff(v1.1.4)|r
 ## Notes: Whiteboard for collaborative scribbling in WoW WotLK 3.3.5a.
 ## Author: Lukas Koschine
-## Version: 1.1.4
+## Version: 1.2.0
 ## SavedVariables: RaidWhiteboardDB
 ## X-License: LGPL-3.0-or-later
 #@no-lib-strip@

@@ -286,7 +286,7 @@ local function CreateToolbar()
                 RWB.db.syncEnabledV2 = RWB.syncEnabled
             end
 
-            -- Turning outgoing sync on sends a full replacement snapshot.
+            -- Turning outgoing Sync on sends the current canvas as a snapshot.
             if RWB.syncEnabled and RWB.BroadcastCurrentCanvas and RWB:IsInGroup() then
                 RWB:BroadcastCurrentCanvas()
             end

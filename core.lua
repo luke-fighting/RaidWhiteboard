@@ -6,7 +6,7 @@ RWB = RWB or {}
 local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 
 RWB.PREFIX = "RWB"
-RWB.VERSION = "1.1.4"
+RWB.VERSION = "1.2.0"
 RWB.strokes = {}
 RWB.texts = {}
 RWB.boardOpen = false
@@ -26,7 +26,7 @@ RWB.redoStack = {}
 RWB.hasReceivedSyncResponse = false
 
 local addonName = L["RWB_PRINT"]
-local addonVersion = "1.1.4"
+local addonVersion = RWB.VERSION
 
 local defaults = {
     templates = {},

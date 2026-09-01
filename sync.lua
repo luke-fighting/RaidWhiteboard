@@ -92,8 +92,7 @@ function RWB:BroadcastBoardState(open)
     SendRaw("O:" .. (open and "1" or "0"))
 end
 
--- Full replacement snapshot. This deliberately bypasses syncEnabled:
--- Presentation and manually enabling Sync are explicit snapshot operations.
+-- Full replacement snapshot. Explicit Sync activation may request this snapshot.
 function RWB:BroadcastCurrentCanvas()
     if not self:IsInGroup() then return end
 
@@ -164,7 +163,9 @@ function RWB:OnComm(message)
         if self.canDraw then
             self:BroadcastBoardState(self.presentation)
 
-            if self.presentation then
+            -- Presentation is visibility only. Canvas data is transferred only
+            -- when outgoing Sync is enabled.
+            if self.presentation and self.syncEnabled then
                 self:BroadcastCurrentCanvas()
             end
         end
@@ -177,10 +178,22 @@ function RWB:OnComm(message)
         self.hasReceivedSyncResponse = true
 
         if rest == "1" then
-            -- Presentation controls ordinary members only.
-            self:SetPresentation(true, false)
+            -- A presentation announcement opens the board on every client,
+            -- including the sender and other lead/assist clients. They may
+            -- still minimize it locally afterwards.
+            self.presentation = true
+            self.boardOpen = true
+            self.myMinimized = false
+            self:RefreshVisibility()
         elseif rest == "0" then
-            self:SetPresentation(false, false)
+            -- Turning Presentation off hides only ordinary group members.
+            -- Lead/assist keep their local visibility unchanged.
+            self.presentation = false
+            self.boardOpen = false
+            if not self.canDraw then
+                self.myMinimized = true
+            end
+            self:RefreshVisibility()
         end
 
     elseif kind == "S" then
