@@ -1,5 +1,6 @@
 -- RaidWhiteboard - ui.lua
 -- SPDX-License-Identifier: LGPL-3.0-or-later
+
 local L = LibStub("AceLocale-3.0"):GetLocale("RWB")
 
 local toolbar
@@ -32,9 +33,7 @@ local function CreateButton(parent, label, x, y, width, callback)
 end
 
 local function RefreshDrawButtonText()
-    if not toolbar or not toolbar.drawButton then
-        return
-    end
+    if not toolbar or not toolbar.drawButton then return end
 
     if RWB.myDrawActive then
         toolbar.drawButton:SetText(L["BUTTON_DEACTIVATE"])
@@ -73,24 +72,33 @@ local function RefreshThicknessHighlights()
     end
 end
 
-local function RefreshBoardToggleButtonText()
-    if not toolbar or not toolbar.boardToggleButton then
-        return
+local function RefreshSwitches()
+    if not toolbar then return end
+
+    if toolbar.syncButton then
+        toolbar.syncButton:SetText(
+            RWB.syncEnabled and L["BUTTON_SYNC_ON"] or L["BUTTON_SYNC_OFF"]
+        )
     end
 
-    if RWB.boardOpen then
-        toolbar.boardToggleButton:SetText(L["BUTTON_CLOSE_ALL"])
-    else
-        toolbar.boardToggleButton:SetText(L["BUTTON_OPEN_ALL"])
+    if toolbar.presentationButton then
+        toolbar.presentationButton:SetText(
+            RWB.presentation and L["BUTTON_PRESENTATION_ON"] or L["BUTTON_PRESENTATION_OFF"]
+        )
+        if RWB:IsInGroup() and RWB.canDraw then
+            toolbar.presentationButton:Enable()
+        else
+            toolbar.presentationButton:Disable()
+        end
     end
 end
 
 local function RefreshAllVisuals()
-    RefreshBoardToggleButtonText()
     RefreshDrawButtonText()
     RefreshToolHighlights()
     RefreshColorHighlights()
     RefreshThicknessHighlights()
+    RefreshSwitches()
 end
 
 local function CreateToolbar()
@@ -118,7 +126,6 @@ local function CreateToolbar()
     })
 
     local dragBar = CreateFrame("Frame", nil, frame)
-
     dragBar:SetHeight(20)
     dragBar:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -8)
     dragBar:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -8)
@@ -139,42 +146,28 @@ local function CreateToolbar()
     title:SetPoint("TOP", dragBar, "TOP", 0, -2)
     title:SetText(L["LABEL_MENU"])
 
-	frame.drawButton = CreateButton(
-		frame,
-		L["BUTTON_ACTIVATE"],
-		20,
-		-88,
-		180,
-		function()
-			RWB:SetMyDrawActive(not RWB.myDrawActive)
-			RefreshDrawButtonText()
-		end
-	)
+    frame.drawButton = CreateButton(
+        frame,
+        L["BUTTON_ACTIVATE"],
+        20, -36, 180,
+        function()
+            if not RWB.canDraw then return end
 
-	CreateButton(
-		frame,
-		L["BUTTON_UNDO"],
-		20,
-		-114,
-		87,
-		function()
-			RWB:Undo()
-		end
-	)
+            RWB:SetMyDrawActive(not RWB.myDrawActive)
+            RefreshDrawButtonText()
+        end
+    )
 
-	CreateButton(
-		frame,
-		L["BUTTON_REDO"],
-		113,
-		-114,
-		87,
-		function()
-			RWB:Redo()
-		end
-	)
+    CreateButton(frame, L["BUTTON_UNDO"], 20, -62, 87, function()
+        if RWB.canDraw then RWB:Undo() end
+    end)
+
+    CreateButton(frame, L["BUTTON_REDO"], 113, -62, 87, function()
+        if RWB.canDraw then RWB:Redo() end
+    end)
 
     local toolLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    toolLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -141)
+    toolLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -89)
     toolLabel:SetText(L["LABEL_TOOL"])
 
     for i, tool in ipairs(tools) do
@@ -182,9 +175,10 @@ local function CreateToolbar()
             frame,
             tool[2],
             20 + (i - 1) * 62,
-            -154,
+            -102,
             58,
             function()
+                if not RWB.canDraw then return end
                 RWB.activeTool = tool[1]
                 RefreshToolHighlights()
             end
@@ -194,7 +188,7 @@ local function CreateToolbar()
     end
 
     local colorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    colorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -180)
+    colorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 20, -128)
     colorLabel:SetText(L["LABEL_COLOR"])
 
     for i, color in ipairs(colors) do
@@ -202,14 +196,13 @@ local function CreateToolbar()
         local col = (i - 1) % 3
 
         local button = CreateFrame("Button", nil, frame)
-
         button:SetSize(24, 24)
         button:SetPoint(
             "TOPLEFT",
             frame,
             "TOPLEFT",
             20 + col * 28,
-            -196 - row * 28
+            -144 - row * 28
         )
 
         button:SetBackdrop({
@@ -227,13 +220,9 @@ local function CreateToolbar()
         local blue = color[4]
 
         button:SetScript("OnClick", function()
-            RWB.activeColor = {
-                r = red,
-                g = green,
-                b = blue,
-                a = 1,
-            }
+            if not RWB.canDraw then return end
 
+            RWB.activeColor = { r=red, g=green, b=blue, a=1 }
             RWB.activeColorId = colorId
 
             if RWB.db then
@@ -248,7 +237,7 @@ local function CreateToolbar()
     end
 
     local thicknessLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    thicknessLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 120, -180)
+    thicknessLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 120, -128)
     thicknessLabel:SetText(L["LABEL_THICKNESS"])
 
     local thicknesses = {2, 4, 8}
@@ -258,9 +247,11 @@ local function CreateToolbar()
             frame,
             tostring(thickness),
             120,
-            -196 - (i - 1) * 28,
+            -144 - (i - 1) * 28,
             60,
             function()
+                if not RWB.canDraw then return end
+
                 RWB.activeThickness = thickness
 
                 if RWB.db then
@@ -277,45 +268,62 @@ local function CreateToolbar()
     CreateButton(
         frame,
         L["BUTTON_CLEAR"],
-        20,
-        -304,
-        180,
+        20, -252, 180,
         function()
-            RWB:ClearCanvas(true)
+            if RWB.canDraw then RWB:ClearCanvas(true) end
         end
     )
 
-    frame.boardToggleButton = CreateButton(
+    frame.syncButton = CreateButton(
         frame,
-        L["BUTTON_OPEN_ALL"],
-        20,
-        -330,
-        180,
+        L["BUTTON_SYNC_ON"],
+        20, -278, 180,
         function()
-            if not RWB.canDraw then
-                RWB:Print(L["MESSAGE_ACTION_DENIED_NO_LEAD"])
-                return
+            if not RWB.canDraw then return end
+
+            RWB.syncEnabled = not RWB.syncEnabled
+            if RWB.db then
+                RWB.db.syncEnabledV2 = RWB.syncEnabled
             end
 
-            if RWB.boardOpen then
-                RWB:CloseBoard(true)
-            else
-                RWB:OpenBoard(true)
+            -- Turning outgoing sync on sends a full replacement snapshot.
+            if RWB.syncEnabled and RWB.BroadcastCurrentCanvas and RWB:IsInGroup() then
+                RWB:BroadcastCurrentCanvas()
             end
+
+            RefreshSwitches()
+        end
+    )
+
+    frame.presentationButton = CreateButton(
+        frame,
+        L["BUTTON_PRESENTATION_OFF"],
+        20, -304, 180,
+        function()
+            if not RWB.canDraw then return end
+
+            RWB:SetPresentation(not RWB.presentation, true)
+            RefreshSwitches()
         end
     )
 
     frame:Hide()
 
+    -- The toolbar is always attached to the board. Never restore it as an
+    -- independent frame after login; that was the source of the overlap.
+    RWB:GetBoard()
+    RWB:LinkBoardAndToolbar(frame)
+
     return frame
 end
 
 function RWB:RefreshToolbarState()
-    if not self.canDraw or self.myMinimized then
-        if toolbar then
-            toolbar:Hide()
-        end
+    local inGroup = self:IsInGroup()
+    local hasMenuRights = (not inGroup) or self.canDraw
+    local boardVisible = self:ShouldShowBoard()
 
+    if not hasMenuRights or not boardVisible then
+        if toolbar then toolbar:Hide() end
         return
     end
 
@@ -324,10 +332,7 @@ function RWB:RefreshToolbarState()
         self.toolbarFrame = toolbar
     end
 
-    if self.board then
-        self:LinkBoardAndToolbar(toolbar)
-    end
-
+    self:LinkBoardAndToolbar(toolbar)
     toolbar:Show()
     RefreshAllVisuals()
 end
