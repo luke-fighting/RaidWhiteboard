@@ -21,6 +21,10 @@ RWB._currentStrokeId = nil
 RWB._currentPoints = nil
 RWB._lastX = nil
 RWB._lastY = nil
+RWB._liveSegment = nil
+RWB._liveAxis = nil
+RWB._liveStartX = nil
+RWB._liveStartY = nil
 RWB.backgroundMode = RWB.backgroundMode or "transparent"
 
 local BACKGROUND_PRESETS = {
@@ -271,8 +275,15 @@ function RWB:SetPresentation(enabled, broadcast)
     self:RefreshVisibility()
 
     if broadcast and self.BroadcastBoardState then
-        -- Presentation is visibility only. It never transfers canvas data.
+        -- Presentation is the visibility state, but enabling it also starts
+        -- a shared drawing session. If outgoing Sync is enabled, send the
+        -- complete current canvas so strokes created while solo are visible
+        -- to the newly invited group members as well.
         self:BroadcastBoardState(self.presentation)
+
+        if self.presentation and self.syncEnabled and self.BroadcastCurrentCanvas then
+            self:BroadcastCurrentCanvas()
+        end
     end
 end
 
@@ -517,6 +528,93 @@ function RWB:StabilizeDrawPoint(x, y)
     return x, y
 end
 
+function RWB:AppendRenderSegment(x1, y1, x2, y2, width, color)
+    local segments = self.activeSegments[self._currentStrokeId]
+    local dx, dy = x2-x1, y2-y1
+    local length = math.sqrt(dx*dx + dy*dy)
+    local dabSize = width or 4
+
+    if length < 0.001 then
+        return
+    end
+
+    local absDx = math.abs(dx)
+    local absDy = math.abs(dy)
+    local axis = nil
+
+    if absDx <= length * AXIS_RENDER_RATIO then
+        axis = "V"
+    elseif absDy <= length * AXIS_RENDER_RATIO then
+        axis = "H"
+    end
+
+    -- Extend the current axis-aligned primitive in place. This keeps a
+    -- 300-pixel vertical stroke at roughly one Texture while drawing.
+    if axis and self._liveSegment and self._liveAxis == axis then
+        local sameLine
+        if axis == "V" then
+            sameLine = math.abs(x1 - self._liveStartX) < 0.001
+        else
+            sameLine = math.abs(y1 - self._liveStartY) < 0.001
+        end
+
+        if sameLine then
+            if axis == "V" then
+                local minY = math.min(self._liveStartY, y2)
+                local maxY = math.max(self._liveStartY, y2)
+                self._liveSegment:ClearAllPoints()
+                self._liveSegment:SetSize(dabSize, math.max(maxY - minY, dabSize))
+                self._liveSegment:SetPoint(
+                    "CENTER",
+                    self:GetCanvas(),
+                    "BOTTOMLEFT",
+                    self._liveStartX,
+                    (minY + maxY) * 0.5
+                )
+            else
+                local minX = math.min(self._liveStartX, x2)
+                local maxX = math.max(self._liveStartX, x2)
+                self._liveSegment:ClearAllPoints()
+                self._liveSegment:SetSize(math.max(maxX - minX, dabSize), dabSize)
+                self._liveSegment:SetPoint(
+                    "CENTER",
+                    self:GetCanvas(),
+                    "BOTTOMLEFT",
+                    (minX + maxX) * 0.5,
+                    self._liveStartY
+                )
+            end
+
+            self._liveSegment:SetVertexColor(color.r, color.g, color.b, color.a or 1)
+            return
+        end
+    end
+
+    self._liveSegment = nil
+    self._liveAxis = nil
+    self._liveStartX = nil
+    self._liveStartY = nil
+
+    local segmentsBefore = #segments
+    self:DrawSegment(
+        segments,
+        x1,
+        y1,
+        x2,
+        y2,
+        width,
+        color,
+        segmentsBefore > 0
+    )
+
+    if axis and #segments > segmentsBefore then
+        self._liveSegment = segments[#segments]
+        self._liveAxis = axis
+        self._liveStartX = x1
+        self._liveStartY = y1
+    end
+end
+
 function RWB:AddDrawPoint(x, y)
     if not self._drawing or not self._currentPoints then
         return false
@@ -533,16 +631,13 @@ function RWB:AddDrawPoint(x, y)
     end
 
     table.insert(self._currentPoints, {x=x,y=y})
-    local segments = self.activeSegments[self._currentStrokeId]
-    self:DrawSegment(
-        segments,
+    self:AppendRenderSegment(
         self._lastX,
         self._lastY,
         x,
         y,
         self.activeThickness,
-        self.activeColor,
-        #segments > 0
+        self.activeColor
     )
     self._lastX,self._lastY = x,y
     return true
@@ -608,6 +703,10 @@ function RWB:SetMyDrawActive(active)
         self._currentPoints = nil
         self._lastX,self._lastY = nil,nil
         self._strokeStartX,self._strokeStartY = nil,nil
+        self._liveSegment = nil
+        self._liveAxis = nil
+        self._liveStartX = nil
+        self._liveStartY = nil
         self._sampleElapsed = 0
         canvas:SetScript("OnMouseDown", nil)
         canvas:SetScript("OnMouseUp", nil)
@@ -634,6 +733,10 @@ function RWB:SetMyDrawActive(active)
         RWB._currentPoints = {{x=x,y=y}}
         RWB._lastX,RWB._lastY = x,y
         RWB._strokeStartX,RWB._strokeStartY = x,y
+        RWB._liveSegment = nil
+        RWB._liveAxis = nil
+        RWB._liveStartX = nil
+        RWB._liveStartY = nil
         RWB._sampleElapsed = 0
         RWB.activeSegments[RWB._currentStrokeId] = {}
     end)
@@ -650,6 +753,10 @@ function RWB:SetMyDrawActive(active)
             RWB._currentStrokeId,RWB._currentPoints = nil,nil
             RWB._lastX,RWB._lastY = nil,nil
             RWB._strokeStartX,RWB._strokeStartY = nil,nil
+            RWB._liveSegment = nil
+            RWB._liveAxis = nil
+            RWB._liveStartX = nil
+            RWB._liveStartY = nil
             RWB._sampleElapsed = 0
             return
         end
@@ -680,6 +787,10 @@ function RWB:SetMyDrawActive(active)
         RWB._currentStrokeId,RWB._currentPoints = nil,nil
         RWB._lastX,RWB._lastY = nil,nil
         RWB._strokeStartX,RWB._strokeStartY = nil,nil
+        RWB._liveSegment = nil
+        RWB._liveAxis = nil
+        RWB._liveStartX = nil
+        RWB._liveStartY = nil
         RWB._sampleElapsed = 0
     end)
 end
