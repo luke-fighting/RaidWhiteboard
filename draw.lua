@@ -79,19 +79,17 @@ function RWB:CycleBackgroundMode()
     self:SetBackgroundMode(BACKGROUND_ORDER[index])
 end
 
-function RWB:LinkBoardAndToolbar(movedFrame)
+function RWB:LinkBoardAndToolbar()
     if not self.board then return end
 
     local toolbar = self.toolbarFrame
     if not toolbar then return end
 
-    if movedFrame == self.board then
-        toolbar:ClearAllPoints()
-        toolbar:SetPoint("TOPLEFT", self.board, "TOPRIGHT", 8, 0)
-    elseif movedFrame == toolbar then
-        self.board:ClearAllPoints()
-        self.board:SetPoint("TOPRIGHT", toolbar, "TOPLEFT", -8, 0)
-    end
+    -- The board is the master frame. The toolbar always follows it.
+    -- Never anchor the board to the toolbar: that creates a circular
+    -- frame dependency because the toolbar already depends on the board.
+    toolbar:ClearAllPoints()
+    toolbar:SetPoint("TOPLEFT", self.board, "TOPRIGHT", 8, 0)
 end
 
 local function CreateBoard()
@@ -124,7 +122,7 @@ local function CreateBoard()
     bar:SetScript("OnDragStop", function()
         board:StopMovingOrSizing()
         RWB:SaveFramePosition(board, "board")
-        RWB:LinkBoardAndToolbar(board)
+        RWB:LinkBoardAndToolbar()
     end)
 
     local title = bar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -674,11 +672,36 @@ function RWB:RemoveStroke(id)
 end
 
 function RWB:ClearCanvas(broadcast)
+    -- Do not modify self.strokes while iterating over it with pairs().
+    -- Collect the IDs first so no strokes can be skipped.
+    local strokeIds = {}
+
     for id in pairs(self.strokes) do
+        table.insert(strokeIds, id)
+    end
+
+    for _, id in ipairs(strokeIds) do
         self:RemoveStroke(id)
     end
 
-    if self.ClearAllTexts then self:ClearAllTexts() end
+    if self.ClearAllTexts then
+        self:ClearAllTexts()
+    end
+
+    -- Reset any in-progress drawing state as well.
+    self._drawing = false
+    self._currentStrokeId = nil
+    self._currentPoints = nil
+    self._lastX = nil
+    self._lastY = nil
+    self._strokeStartX = nil
+    self._strokeStartY = nil
+    self._liveSegment = nil
+    self._liveAxis = nil
+    self._liveStartX = nil
+    self._liveStartY = nil
+    self._sampleElapsed = 0
+
     self:ClearHistory()
 
     if broadcast and self.BroadcastClear then
