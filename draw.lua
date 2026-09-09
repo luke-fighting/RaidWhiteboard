@@ -6,6 +6,9 @@ local BOARD_NAME = "RaidWhiteboardBoard"
 local LINE_TEXTURE = "Interface\\Buttons\\WHITE8X8"
 local BOARD_WIDTH, BOARD_HEIGHT = 800, 500
 local MIN_SEGMENT_DISTANCE = 3
+local SAMPLE_INTERVAL = 0.025 -- 40 Hz input sampling
+local SIMPLIFY_TOLERANCE = 1.5
+local RENDER_SPACING_FACTOR = 0.55
 
 RWB.board = nil
 RWB.canvas = nil
@@ -168,7 +171,7 @@ local function CreateBoard()
     canvas:SetSize(BOARD_WIDTH, BOARD_HEIGHT)
     canvas:SetPoint("CENTER", board, "CENTER", 0, -9)
     canvas:EnableMouse(false)
-    canvas:SetScript("OnUpdate", function() RWB:OnCanvasUpdate() end)
+    canvas:SetScript("OnUpdate", function(_, elapsed) RWB:OnCanvasUpdate(elapsed) end)
 
     board.canvas = canvas
     board:Hide()
@@ -329,13 +332,180 @@ function RWB:ReleaseSegment(segment)
     table.insert(self.segmentPool, segment)
 end
 
-function RWB:DrawSegment(segment, x1, y1, x2, y2, width, color)
+-- WoW 3.3.5a cannot be relied upon to rotate a stretched Texture as a
+-- geometric line. In particular, the old SetRotation approach can render
+-- vertical strokes as a stack of horizontal bars.
+--
+-- Instead, rasterize each logical line segment into overlapping square dabs.
+-- The dabs are never rotated, so horizontal, vertical and diagonal strokes
+-- use exactly the same rendering path. The stored/network representation is
+-- still just a list of points.
+function RWB:DrawSegment(segments, x1, y1, x2, y2, width, color)
     local dx, dy = x2-x1, y2-y1
-    segment:ClearAllPoints()
-    segment:SetSize(math.max(math.sqrt(dx*dx+dy*dy), 0.001), width or 4)
-    segment:SetPoint("LEFT", self:GetCanvas(), "BOTTOMLEFT", x1, y1)
-    if segment.SetRotation then segment:SetRotation(math.atan2(dy, dx)) end
-    segment:SetVertexColor(color.r, color.g, color.b, color.a or 1)
+    local length = math.sqrt(dx*dx + dy*dy)
+    local dabSize = width or 4
+
+    if length < 0.001 then
+        local dab = self:AcquireSegment()
+        dab:SetSize(dabSize, dabSize)
+        dab:SetPoint("CENTER", self:GetCanvas(), "BOTTOMLEFT", x1, y1)
+        dab:SetVertexColor(color.r, color.g, color.b, color.a or 1)
+        table.insert(segments, dab)
+        return
+    end
+
+    local spacing = math.max(1, dabSize * RENDER_SPACING_FACTOR)
+    local steps = math.max(1, math.ceil(length / spacing))
+
+    for i=0,steps do
+        local t = i / steps
+        local x = x1 + dx * t
+        local y = y1 + dy * t
+        local dab = self:AcquireSegment()
+        dab:SetSize(dabSize, dabSize)
+        dab:SetPoint("CENTER", self:GetCanvas(), "BOTTOMLEFT", x, y)
+        dab:SetVertexColor(color.r, color.g, color.b, color.a or 1)
+        table.insert(segments, dab)
+    end
+end
+
+local function PointLineDistanceSquared(point, a, b)
+    local dx = b.x - a.x
+    local dy = b.y - a.y
+
+    if dx == 0 and dy == 0 then
+        local px = point.x - a.x
+        local py = point.y - a.y
+        return px*px + py*py
+    end
+
+    local t = ((point.x - a.x) * dx + (point.y - a.y) * dy) / (dx*dx + dy*dy)
+    if t < 0 then
+        t = 0
+    elseif t > 1 then
+        t = 1
+    end
+
+    local closestX = a.x + t * dx
+    local closestY = a.y + t * dy
+    local px = point.x - closestX
+    local py = point.y - closestY
+    return px*px + py*py
+end
+
+-- Ramer-Douglas-Peucker simplification. We sample fairly often for smooth
+-- local drawing, but only send the geometrically meaningful points.
+function RWB:SimplifyPoints(points, tolerance)
+    local count = #points
+    if count <= 2 then
+        return points
+    end
+
+    local toleranceSquared = tolerance * tolerance
+    local keep = {}
+    local stack = {}
+
+    keep[1] = true
+    keep[count] = true
+    table.insert(stack, { first=1, last=count })
+
+    while #stack > 0 do
+        local range = table.remove(stack)
+        local first = range.first
+        local last = range.last
+        local maxDistance = toleranceSquared
+        local split = nil
+        local a = points[first]
+        local b = points[last]
+
+        for i=first+1,last-1 do
+            local distance = PointLineDistanceSquared(points[i], a, b)
+            if distance > maxDistance then
+                maxDistance = distance
+                split = i
+            end
+        end
+
+        if split then
+            keep[split] = true
+            table.insert(stack, { first=first, last=split })
+            table.insert(stack, { first=split, last=last })
+        end
+    end
+
+    local result = {}
+    for i=1,count do
+        if keep[i] then
+            table.insert(result, points[i])
+        end
+    end
+    return result
+end
+
+function RWB:StabilizeDrawPoint(x, y)
+    if not self._lastX or not self._lastY then
+        return x, y
+    end
+
+    local dx = x - self._lastX
+    local dy = y - self._lastY
+    local absDx = math.abs(dx)
+    local absDy = math.abs(dy)
+
+    if IsShiftKeyDown() then
+        local startX = self._strokeStartX or self._lastX
+        local startY = self._strokeStartY or self._lastY
+        local totalDx = x - startX
+        local totalDy = y - startY
+
+        if math.abs(totalDx) >= math.abs(totalDy) then
+            y = startY
+        else
+            x = startX
+        end
+        return x, y
+    end
+
+    if absDx >= absDy then
+        if absDy <= absDx * 0.10 then
+            y = self._lastY
+        end
+    else
+        if absDx <= absDy * 0.10 then
+            x = self._lastX
+        end
+    end
+
+    return x, y
+end
+
+function RWB:AddDrawPoint(x, y)
+    if not self._drawing or not self._currentPoints then
+        return false
+    end
+
+    x, y = self:StabilizeDrawPoint(x, y)
+
+    local dx = x - self._lastX
+    local dy = y - self._lastY
+    local distance = math.sqrt(dx*dx + dy*dy)
+
+    if distance < MIN_SEGMENT_DISTANCE then
+        return false
+    end
+
+    table.insert(self._currentPoints, {x=x,y=y})
+    self:DrawSegment(
+        self.activeSegments[self._currentStrokeId],
+        self._lastX,
+        self._lastY,
+        x,
+        y,
+        self.activeThickness,
+        self.activeColor
+    )
+    self._lastX,self._lastY = x,y
+    return true
 end
 
 function RWB:RenderStroke(id, data)
@@ -350,9 +520,7 @@ function RWB:RenderStroke(id, data)
 
     for i=1,#data.points-1 do
         local p1,p2 = data.points[i],data.points[i+1]
-        local segment = self:AcquireSegment()
-        self:DrawSegment(segment,p1.x,p1.y,p2.x,p2.y,data.thickness,data.color)
-        table.insert(self.activeSegments[id],segment)
+        self:DrawSegment(self.activeSegments[id],p1.x,p1.y,p2.x,p2.y,data.thickness,data.color)
     end
 end
 
@@ -398,6 +566,9 @@ function RWB:SetMyDrawActive(active)
         self._drawing = false
         self._currentStrokeId = nil
         self._currentPoints = nil
+        self._lastX,self._lastY = nil,nil
+        self._strokeStartX,self._strokeStartY = nil,nil
+        self._sampleElapsed = 0
         canvas:SetScript("OnMouseDown", nil)
         canvas:SetScript("OnMouseUp", nil)
         return
@@ -422,27 +593,40 @@ function RWB:SetMyDrawActive(active)
         RWB._currentStrokeId = RWB:GenerateStrokeId()
         RWB._currentPoints = {{x=x,y=y}}
         RWB._lastX,RWB._lastY = x,y
+        RWB._strokeStartX,RWB._strokeStartY = x,y
+        RWB._sampleElapsed = 0
         RWB.activeSegments[RWB._currentStrokeId] = {}
     end)
 
     canvas:SetScript("OnMouseUp", function(_, mouseButton)
         if mouseButton ~= "LeftButton" or not RWB._drawing then return end
 
+        local x,y = RWB:GetCursorCanvasPos()
+        RWB:AddDrawPoint(x,y)
+
         RWB._drawing = false
 
         if #RWB._currentPoints < 2 then
             RWB._currentStrokeId,RWB._currentPoints = nil,nil
+            RWB._lastX,RWB._lastY = nil,nil
+            RWB._strokeStartX,RWB._strokeStartY = nil,nil
+            RWB._sampleElapsed = 0
             return
         end
 
+        local simplifiedPoints = RWB:SimplifyPoints(RWB._currentPoints, SIMPLIFY_TOLERANCE)
+
         local data = {
-            points=RWB._currentPoints,
+            points=simplifiedPoints,
             color=RWB.activeColor,
             thickness=RWB.activeThickness,
             tool="PEN"
         }
 
-        RWB.strokes[RWB._currentStrokeId] = data
+        -- Re-render from the simplified point set. This makes the local
+        -- representation identical to what remote clients receive.
+        RWB:RenderStroke(RWB._currentStrokeId, data)
+
         RWB:PushUndoAction({
             kind="stroke",
             id=RWB._currentStrokeId,
@@ -454,22 +638,24 @@ function RWB:SetMyDrawActive(active)
         end
 
         RWB._currentStrokeId,RWB._currentPoints = nil,nil
+        RWB._lastX,RWB._lastY = nil,nil
+        RWB._strokeStartX,RWB._strokeStartY = nil,nil
+        RWB._sampleElapsed = 0
     end)
 end
 
-function RWB:OnCanvasUpdate()
+function RWB:OnCanvasUpdate(elapsed)
     if not(self.myDrawActive and self._drawing) then return end
 
-    local x,y = self:GetCursorCanvasPos()
-    local dx,dy = x-self._lastX,y-self._lastY
+    self._sampleElapsed = (self._sampleElapsed or 0) + (elapsed or 0)
 
-    if math.sqrt(dx*dx+dy*dy) < MIN_SEGMENT_DISTANCE then return end
-
-    local segment = self:AcquireSegment()
-    self:DrawSegment(segment,self._lastX,self._lastY,x,y,self.activeThickness,self.activeColor)
-    table.insert(self.activeSegments[self._currentStrokeId],segment)
-    table.insert(self._currentPoints,{x=x,y=y})
-    self._lastX,self._lastY = x,y
+    -- Keep the sampling cadence independent from frame rate. Carry the
+    -- remainder forward so long-term timing does not drift.
+    while self._sampleElapsed >= SAMPLE_INTERVAL do
+        self._sampleElapsed = self._sampleElapsed - SAMPLE_INTERVAL
+        local x,y = self:GetCursorCanvasPos()
+        self:AddDrawPoint(x,y)
+    end
 end
 
 function RWB:EraseAtCursor()
