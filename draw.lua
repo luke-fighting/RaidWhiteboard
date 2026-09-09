@@ -8,7 +8,8 @@ local BOARD_WIDTH, BOARD_HEIGHT = 800, 500
 local MIN_SEGMENT_DISTANCE = 3
 local SAMPLE_INTERVAL = 0.025 -- 40 Hz input sampling
 local SIMPLIFY_TOLERANCE = 1.5
-local RENDER_SPACING_FACTOR = 0.55
+local RENDER_SPACING_FACTOR = 0.80
+local AXIS_RENDER_RATIO = 0.10
 
 RWB.board = nil
 RWB.canvas = nil
@@ -340,24 +341,62 @@ end
 -- The dabs are never rotated, so horizontal, vertical and diagonal strokes
 -- use exactly the same rendering path. The stored/network representation is
 -- still just a list of points.
-function RWB:DrawSegment(segments, x1, y1, x2, y2, width, color)
+function RWB:DrawSegment(segments, x1, y1, x2, y2, width, color, skipStart)
     local dx, dy = x2-x1, y2-y1
     local length = math.sqrt(dx*dx + dy*dy)
     local dabSize = width or 4
 
     if length < 0.001 then
-        local dab = self:AcquireSegment()
-        dab:SetSize(dabSize, dabSize)
-        dab:SetPoint("CENTER", self:GetCanvas(), "BOTTOMLEFT", x1, y1)
-        dab:SetVertexColor(color.r, color.g, color.b, color.a or 1)
-        table.insert(segments, dab)
+        if not skipStart then
+            local dab = self:AcquireSegment()
+            dab:SetSize(dabSize, dabSize)
+            dab:SetPoint("CENTER", self:GetCanvas(), "BOTTOMLEFT", x1, y1)
+            dab:SetVertexColor(color.r, color.g, color.b, color.a or 1)
+            table.insert(segments, dab)
+        end
         return
     end
 
+    -- Axis-aligned segments can be rendered as one ordinary, unrotated
+    -- rectangle. This is both much cheaper and avoids the old 3.3.5a
+    -- SetRotation problem completely.
+    local absDx = math.abs(dx)
+    local absDy = math.abs(dy)
+    if absDx <= length * AXIS_RENDER_RATIO then
+        local segment = self:AcquireSegment()
+        segment:SetSize(dabSize, length)
+        segment:SetPoint(
+            "CENTER",
+            self:GetCanvas(),
+            "BOTTOMLEFT",
+            (x1 + x2) * 0.5,
+            (y1 + y2) * 0.5
+        )
+        segment:SetVertexColor(color.r, color.g, color.b, color.a or 1)
+        table.insert(segments, segment)
+        return
+    elseif absDy <= length * AXIS_RENDER_RATIO then
+        local segment = self:AcquireSegment()
+        segment:SetSize(length, dabSize)
+        segment:SetPoint(
+            "CENTER",
+            self:GetCanvas(),
+            "BOTTOMLEFT",
+            (x1 + x2) * 0.5,
+            (y1 + y2) * 0.5
+        )
+        segment:SetVertexColor(color.r, color.g, color.b, color.a or 1)
+        table.insert(segments, segment)
+        return
+    end
+
+    -- Diagonals are rasterized with overlapping square dabs.  0.80 means
+    -- each dab overlaps the next one by roughly 20% of its diameter.
     local spacing = math.max(1, dabSize * RENDER_SPACING_FACTOR)
     local steps = math.max(1, math.ceil(length / spacing))
+    local firstStep = skipStart and 1 or 0
 
-    for i=0,steps do
+    for i=firstStep,steps do
         local t = i / steps
         local x = x1 + dx * t
         local y = y1 + dy * t
@@ -368,7 +407,6 @@ function RWB:DrawSegment(segments, x1, y1, x2, y2, width, color)
         table.insert(segments, dab)
     end
 end
-
 local function PointLineDistanceSquared(point, a, b)
     local dx = b.x - a.x
     local dy = b.y - a.y
@@ -495,14 +533,16 @@ function RWB:AddDrawPoint(x, y)
     end
 
     table.insert(self._currentPoints, {x=x,y=y})
+    local segments = self.activeSegments[self._currentStrokeId]
     self:DrawSegment(
-        self.activeSegments[self._currentStrokeId],
+        segments,
         self._lastX,
         self._lastY,
         x,
         y,
         self.activeThickness,
-        self.activeColor
+        self.activeColor,
+        #segments > 0
     )
     self._lastX,self._lastY = x,y
     return true
@@ -520,7 +560,7 @@ function RWB:RenderStroke(id, data)
 
     for i=1,#data.points-1 do
         local p1,p2 = data.points[i],data.points[i+1]
-        self:DrawSegment(self.activeSegments[id],p1.x,p1.y,p2.x,p2.y,data.thickness,data.color)
+        self:DrawSegment(self.activeSegments[id],p1.x,p1.y,p2.x,p2.y,data.thickness,data.color,i > 1)
     end
 end
 
